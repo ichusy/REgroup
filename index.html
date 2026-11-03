@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>REgroup</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%237c5cff'/%3E%3Ctext x='32' y='43' font-family='Arial' font-weight='900' font-size='30' text-anchor='middle' fill='white'%3ERE%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Figtree:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  /* Layout: one centered column of full-width launch rows under a centered wordmark */
+  :root {
+    --bg: #0f1016;
+    --card: #191b24;
+    --card-hover: #222533;
+    --border: #2a2d3b;
+    --text: #f1f2f8;
+    --muted: #8c90a6;
+    --accent: #7c5cff;
+    --accent2: #22d3ee;
+    --danger: #ff5c7a;
+    --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+    --font-body: Figtree, system-ui, -apple-system, sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+  }
+  .wrap {
+    max-width: 640px; margin: 0 auto;
+    padding-block: 40px 60px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+
+  header { text-align: center; margin-bottom: 32px; }
+  .logo { display: inline-flex; align-items: center; gap: 12px; }
+  .logo-mark {
+    width: 52px; height: 52px; border-radius: 14px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: grid; place-items: center;
+  }
+  .logo-mark svg { width: 30px; height: 30px; }
+  .logo-text { font-family: var(--font-display); font-size: 42px; font-weight: 800; letter-spacing: -1px; }
+  .logo-text b {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .tagline { color: var(--muted); margin-top: 6px; font-size: 14px; }
+
+  .toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+  .btn {
+    background: transparent; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 14px; font: inherit; font-size: 13px; cursor: pointer;
+  }
+  .btn:hover, .btn:focus-visible { color: var(--text); border-color: var(--muted); outline: none; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--text); }
+  .btn.danger { border-color: var(--danger); color: var(--danger); }
+
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .site {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px 18px; text-decoration: none; color: var(--text);
+    transition: background .15s, transform .15s, border-color .15s;
+  }
+  a.site:hover, a.site:focus-visible { background: var(--card-hover); border-color: var(--accent); transform: translateX(4px); outline: none; }
+  .site img, .site .fallback {
+    width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; object-fit: contain;
+  }
+  .site .fallback {
+    display: grid; place-items: center; font-weight: 800; font-family: var(--font-display);
+    background: var(--border); color: var(--text);
+  }
+  .site .name { font-size: 18px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .site .arrow { color: var(--muted); font-size: 18px; }
+
+  .editing .site { cursor: grab; }
+  .editing .site.dragging { opacity: .4; }
+  .editing .site.over { border-color: var(--accent2); }
+  .handle { color: var(--muted); font-size: 18px; user-select: none; }
+  .move { display: flex; flex-direction: column; }
+  .move button, .del { background: none; border: none; color: var(--muted); cursor: pointer; padding: 0 4px; font: inherit; }
+  .move button { font-size: 12px; line-height: 1.1; }
+  .move button:hover { color: var(--text); }
+  .del { color: var(--danger); font-size: 20px; }
+  .logo-btn { font-size: 12px; padding: 5px 10px; white-space: nowrap; }
+
+  form.add { gap: 8px; margin-top: 14px; flex-wrap: wrap; display: flex; }
+  form.add input {
+    flex: 1 1 180px; min-width: 0; background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px;
+  }
+  form.add input:focus { outline: none; border-color: var(--accent); }
+  .err { color: var(--danger); font-size: 13px; width: 100%; }
+  .reset { margin-top: 18px; display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 13px; }
+  @media (prefers-reduced-motion: reduce) { .site { transition: none; } a.site:hover { transform: none; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <header>
+    <div class="logo">
+      <div class="logo-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+        </svg>
+      </div>
+      <div class="logo-text"><b>RE</b>group</div>
+    </div>
+    <div class="tagline">Tous tes sites, en un clic.</div>
+  </header>
+
+  <div class="toolbar"><button class="btn" id="editBtn">Modifier</button></div>
+
+  <ul id="list"></ul>
+
+  <form class="add" id="addForm" hidden>
+    <input id="addName" placeholder="Nom du site" required>
+    <input id="addUrl" placeholder="https://…" required>
+    <button class="btn primary" type="submit">Ajouter</button>
+    <div class="err" id="addErr" hidden></div>
+  </form>
+  <div class="reset" id="resetBox" hidden>
+    <button class="btn" id="resetBtn">Remettre la liste d'origine</button>
+    <span id="resetConfirm" hidden>Sûr ? <button class="btn danger" id="resetYes">Oui, remettre</button> <button class="btn" id="resetNo">Annuler</button></span>
+  </div>
+</div>
+
+<script>
+const DEFAULT_SITES = [
+  { name: "Wordle",         url: "https://www.nytimes.com/games/wordle/index.html" },
+  { name: "Poople",         url: "https://poople.io/" },
+  { name: "Minute Cryptic", url: "https://www.minutecryptic.com/" },
+  { name: "Worldle",        url: "https://worldle.teuteuf.fr/" },
+  { name: "travle",         url: "https://travle.earth/" },
+  { name: "Globle",         url: "https://globle-game.com/" },
+  { name: "COSTCODLE",      url: "https://costcodle.com/" },
+  { name: "Minecraftle",    url: "https://minecraftle.zachmanson.com/" },
+  { name: "Connections",    url: "https://www.nytimes.com/games/connections" },
+  { name: "Elementle",      url: "https://elementlegame.com/" },
+  { name: "Krillion",       url: "https://krillion.io/" },
+  { name: "Angle",          url: "https://angle.wtf/" },
+  { name: "Quordle",        url: "https://www.merriam-webster.com/games/quordle/#/" },
+  { name: "my-shot",        url: "https://my-shot.net/" },
+  { name: "STRANDED",       url: "https://stranded.run/" },
+  { name: "Flagle",         url: "https://www.flagle.io/" },
+  { name: "Farflung",       url: "https://farflung.game/" },
+];
+const KEY = "regroup-sites";
+const SEEN_KEY = "regroup-seen";
+
+let sites = load();
+let editing = false;
+let dragIndex = null;
+
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY));
+    if (Array.isArray(saved)) {
+      // Append sites added to the default list since this browser last visited,
+      // without bringing back ones the viewer deleted
+      const seen = JSON.parse(localStorage.getItem(SEEN_KEY)) || DEFAULT_SITES.slice(0, 15).map(s => s.url);
+      DEFAULT_SITES.forEach(d => {
+        if (!seen.includes(d.url) && !saved.some(s => s.url === d.url)) saved.push(d);
+      });
+      localStorage.setItem(SEEN_KEY, JSON.stringify(DEFAULT_SITES.map(s => s.url)));
+      localStorage.setItem(KEY, JSON.stringify(saved));
+      return saved;
+    }
+  } catch {}
+  return DEFAULT_SITES.slice();
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(sites)); } catch {}
+}
+
+function logoUrl(url) {
+  // NYT games share a domain, so point at their own icons
+  if (url.includes("nytimes.com/games/wordle")) return "https://www.nytimes.com/games-assets/v2/metadata/wordle-favicon.ico";
+  if (url.includes("nytimes.com/games/connections")) return "https://www.nytimes.com/games-assets/v2/metadata/connections-favicon.ico";
+  try { return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=128`; } catch { return null; }
+}
+
+function logoEl(site) {
+  const fallback = () => {
+    const f = document.createElement("div");
+    f.className = "fallback";
+    f.textContent = site.name.trim()[0]?.toUpperCase() || "?";
+    return f;
+  };
+  const src = site.logo || logoUrl(site.url);
+  if (!src) return fallback();
+  const img = document.createElement("img");
+  img.alt = "";
+  img.src = src;
+  img.onerror = () => img.replaceWith(fallback());
+  return img;
+}
+
+// Shrink the chosen image to 64px so it stays small in saved storage
+function setLogo(i, file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = c.height = 64;
+      const s = Math.min(64 / img.width, 64 / img.height);
+      const w = img.width * s, h = img.height * s;
+      c.getContext("2d").drawImage(img, (64 - w) / 2, (64 - h) / 2, w, h);
+      sites[i].logo = c.toDataURL("image/png");
+      save(); render();
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function move(i, d) {
+  const j = i + d;
+  if (j < 0 || j >= sites.length) return;
+  [sites[i], sites[j]] = [sites[j], sites[i]];
+  save(); render();
+}
+
+function render() {
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+  document.getElementById("app").classList.toggle("editing", editing);
+  document.getElementById("editBtn").textContent = editing ? "Terminé" : "Modifier";
+  document.getElementById("addForm").hidden = !editing;
+  document.getElementById("resetBox").hidden = !editing;
+
+  sites.forEach((site, i) => {
+    const li = document.createElement("li");
+    const row = document.createElement(editing ? "div" : "a");
+    row.className = "site";
+    if (!editing) {
+      row.href = site.url;
+      row.target = "_blank";
+      row.rel = "noopener";
+    }
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = site.name;
+
+    if (editing) {
+      const mv = document.createElement("div");
+      mv.className = "move";
+      const up = document.createElement("button");
+      up.textContent = "▲"; up.title = "Monter"; up.onclick = () => move(i, -1);
+      const down = document.createElement("button");
+      down.textContent = "▼"; down.title = "Descendre"; down.onclick = () => move(i, 1);
+      mv.append(up, down);
+      row.append(mv);
+    }
+    row.append(logoEl(site), name);
+
+    if (editing) {
+      const del = document.createElement("button");
+      del.className = "del";
+      del.title = "Supprimer";
+      del.textContent = "×";
+      del.onclick = () => { sites.splice(i, 1); save(); render(); };
+      const pick = document.createElement("input");
+      pick.type = "file";
+      pick.accept = "image/*";
+      pick.id = "logo-" + i;
+      pick.hidden = true;
+      pick.onchange = () => pick.files[0] && setLogo(i, pick.files[0]);
+      const logoBtn = document.createElement("button");
+      logoBtn.className = "btn logo-btn";
+      logoBtn.textContent = "Logo";
+      logoBtn.title = "Choisir une image de logo";
+      logoBtn.onclick = () => pick.click();
+      row.append(pick, logoBtn, del);
+
+      row.draggable = true;
+      row.ondragstart = () => { dragIndex = i; row.classList.add("dragging"); };
+      row.ondragend = () => row.classList.remove("dragging");
+      row.ondragover = e => { e.preventDefault(); row.classList.add("over"); };
+      row.ondragleave = () => row.classList.remove("over");
+      row.ondrop = e => {
+        e.preventDefault();
+        if (dragIndex === null || dragIndex === i) return render();
+        const [moved] = sites.splice(dragIndex, 1);
+        sites.splice(i, 0, moved);
+        dragIndex = null;
+        save(); render();
+      };
+    } else {
+      const arrow = document.createElement("span");
+      arrow.className = "arrow";
+      arrow.textContent = "↗";
+      row.append(arrow);
+    }
+    li.append(row);
+    list.append(li);
+  });
+}
+
+document.getElementById("editBtn").onclick = () => { editing = !editing; render(); };
+
+document.getElementById("addForm").onsubmit = e => {
+  e.preventDefault();
+  const err = document.getElementById("addErr");
+  const name = document.getElementById("addName").value.trim();
+  let url = document.getElementById("addUrl").value.trim();
+  if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+  try { new URL(url); } catch {
+    err.textContent = "Cette adresse n'est pas valide. Exemple : https://wordle.com";
+    err.hidden = false;
+    return;
+  }
+  err.hidden = true;
+  sites.push({ name, url });
+  save(); render();
+  e.target.reset();
+};
+
+const resetConfirm = document.getElementById("resetConfirm");
+document.getElementById("resetBtn").onclick = () => { resetConfirm.hidden = false; };
+document.getElementById("resetNo").onclick = () => { resetConfirm.hidden = true; };
+document.getElementById("resetYes").onclick = () => {
+  resetConfirm.hidden = true;
+  sites = DEFAULT_SITES.slice();
+  save(); render();
+};
+
+render();
+</script>
+</body>
+</html>
