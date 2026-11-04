@@ -19,6 +19,7 @@
     --accent: #7c5cff;
     --accent2: #22d3ee;
     --danger: #ff5c7a;
+    --gold: #ffd166;
     --font-display: "Bricolage Grotesque", system-ui, sans-serif;
     --font-body: Figtree, system-ui, -apple-system, sans-serif;
     color-scheme: dark;
@@ -36,7 +37,7 @@
   .wrap {
     position: relative;
     max-width: 640px; margin: 0 auto;
-    padding-block: 40px 30vh;
+    padding-block: 32px 60px;
     padding-left: max(16px, env(safe-area-inset-left, 0px));
     padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
@@ -56,7 +57,54 @@
   }
   .tagline { color: var(--muted); margin-top: 6px; font-size: 14px; }
 
-  .toolbar { display: flex; justify-content: flex-end; margin-bottom: 12px; }
+  .status { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .progress { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; flex: 1 1 150px; min-width: 0; }
+  .bar { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .4s; }
+  .status.complete .progress { color: var(--gold); }
+  .status.complete .bar i { background: var(--gold); }
+  .toolbar { display: flex; gap: 8px; align-items: center; }
+  .seg { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .seg button { background: transparent; color: var(--muted); border: none; padding: 8px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--text); }
+  .seg button:focus-visible { outline: 2px solid var(--accent2); outline-offset: -2px; }
+
+  body.in-system { overflow: hidden; }
+  body.in-system .wrap { padding-block-end: 0; }
+  #system { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+  .planet {
+    position: absolute; top: 0; left: 0; border-radius: 50%; pointer-events: auto;
+    text-decoration: none; color: var(--text); will-change: transform;
+  }
+  .planet span {
+    position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 2px;
+    font-size: 13px; font-weight: 600; white-space: nowrap; color: var(--muted);
+    text-shadow: 0 1px 4px var(--bg), 0 0 10px var(--bg);
+    transition: color .15s;
+  }
+  .planet.played span { color: var(--text); }
+  .planet.played span::before { content: "✓ "; color: var(--gold); }
+  .planet:hover span, .planet:focus-visible span { color: var(--text); font-size: 15px; }
+  .planet:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+  @media (max-width: 600px) { .planet span { font-size: 11.5px; } .planet:hover span, .planet:focus-visible span { font-size: 13px; } }
+  #flash { position: fixed; inset: 0; background: var(--text); opacity: 0; pointer-events: none; }
+  #toast {
+    position: fixed; left: 50%; transform: translateX(-50%);
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    background: var(--accent); border-radius: 12px; font-weight: 600; max-width: calc(100% - 32px);
+  }
+  #toast a { display: block; padding: 12px 18px; color: var(--text); text-decoration: none; }
+
+  #list li { position: relative; }
+  #list .check {
+    position: absolute; right: 54px; top: 50%; transform: translateY(-50%);
+    width: 24px; height: 24px; border-radius: 50%; padding: 0;
+    background: transparent; border: 1.5px solid var(--muted); color: var(--bg);
+    font: inherit; font-size: 14px; font-weight: 800; line-height: 1; cursor: pointer;
+  }
+  #list .check:focus-visible { outline: 2px solid var(--accent2); outline-offset: 2px; }
+  #list li.played .check { background: var(--gold); border-color: var(--gold); }
+  #list li.played .name { color: var(--muted); }
   .btn {
     background: transparent; color: var(--muted); border: 1px solid var(--border);
     border-radius: 10px; padding: 8px 14px; font: inherit; font-size: 13px; cursor: pointer;
@@ -122,7 +170,19 @@
     <div class="tagline">Tous tes sites, en un clic.</div>
   </header>
 
-  <div class="toolbar"><button class="btn" id="editBtn">Modifier</button></div>
+  <div class="status" id="status">
+    <div class="progress">
+      <span id="progressText"></span>
+      <div class="bar"><i id="progressBar"></i></div>
+    </div>
+    <div class="toolbar">
+      <div class="seg" id="viewToggle">
+        <button id="viewSystem">Système</button>
+        <button id="viewList">Liste</button>
+      </div>
+      <button class="btn" id="editBtn">Modifier</button>
+    </div>
+  </div>
 
   <ul id="list"></ul>
 
@@ -137,6 +197,9 @@
     <span id="resetConfirm" hidden>Sûr ? <button class="btn danger" id="resetYes">Oui, remettre</button> <button class="btn" id="resetNo">Annuler</button></span>
   </div>
 </div>
+<div id="system" hidden></div>
+<div id="flash" aria-hidden="true"></div>
+<div id="toast" role="status" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -165,6 +228,7 @@ const SEEN_KEY = "regroup-seen";
 let sites = load();
 let editing = false;
 let dragIndex = null;
+let view = "list";
 
 function load() {
   try {
@@ -241,6 +305,13 @@ function render() {
   list.innerHTML = "";
   document.getElementById("app").classList.toggle("editing", editing);
   document.getElementById("editBtn").textContent = editing ? "Terminé" : "Modifier";
+  const inSystem = view === "system";
+  document.body.classList.toggle("in-system", inSystem);
+  list.hidden = inSystem;
+  systemEl.hidden = !inSystem;
+  document.getElementById("editBtn").hidden = inSystem;
+  document.getElementById("viewSystem").setAttribute("aria-pressed", inSystem ? "true" : "false");
+  document.getElementById("viewList").setAttribute("aria-pressed", inSystem ? "false" : "true");
   document.getElementById("addForm").hidden = !editing;
   document.getElementById("resetBox").hidden = !editing;
 
@@ -252,6 +323,7 @@ function render() {
       row.href = site.url;
       row.target = "_blank";
       row.rel = "noopener";
+      row.onclick = e => launch(e, i, row);
     }
     const name = document.createElement("span");
     name.className = "name";
@@ -308,9 +380,18 @@ function render() {
       row.append(arrow);
     }
     li.append(row);
+    if (!editing) {
+      const check = document.createElement("button");
+      check.className = "check";
+      check.title = "Marquer comme joué aujourd'hui";
+      check.setAttribute("aria-label", `${site.name} : marquer comme joué aujourd'hui`);
+      check.onclick = () => setPlayed(site.url, !played.has(site.url));
+      li.append(check);
+    }
     list.append(li);
   });
   syncPlanets();
+  updatePlayedUI();
 }
 
 document.getElementById("editBtn").onclick = () => { editing = !editing; render(); };
@@ -341,69 +422,139 @@ document.getElementById("resetYes").onclick = () => {
   save(); render();
 };
 
-const listEl = document.getElementById("list");
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-const noHover = matchMedia("(hover: none)").matches;
+const systemEl = document.getElementById("system");
+const flashEl = document.getElementById("flash");
+const toastEl = document.getElementById("toast");
+const VIEW_KEY = "regroup-view";
+const PLAYED_KEY = "regroup-played";
 let scene3d = null;
 let activeRow = -1;
+let played = loadPlayed();
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const ease = t => t * t * (3 - 2 * t);
 
-// Bend rows near the screen edges so the list reads like the face of a drum.
-// Layout offsets ignore transforms, so reading them every frame stays stable.
-function bendRows() {
-  const flat = editing || reducedMotion;
-  const h = innerHeight / 2;
-  const top = listEl.getBoundingClientRect().top;
-  let closest = -1, best = Infinity;
-  [...listEl.children].forEach((li, i) => {
-    const d = (top + li.offsetTop + li.offsetHeight / 2 - h) / h;
-    if (Math.abs(d) < best) { best = Math.abs(d); closest = i; }
-    const a = flat ? 0 : clamp((Math.abs(d) - 0.6) / 0.6, 0, 1);
-    li.style.transform = a ? `perspective(1000px) rotateX(${-Math.sign(d) * a * 38}deg) translateZ(${-a * 70}px)` : "";
-    li.style.opacity = a ? 1 - a * 0.5 : "";
+function today() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+function loadPlayed() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PLAYED_KEY));
+    if (saved && saved.day === today() && Array.isArray(saved.urls)) return new Set(saved.urls);
+  } catch {}
+  return new Set();
+}
+function savePlayed() {
+  try { localStorage.setItem(PLAYED_KEY, JSON.stringify({ day: today(), urls: [...played] })); } catch {}
+}
+function setPlayed(url, on) {
+  const wasComplete = isComplete();
+  if (on) played.add(url); else played.delete(url);
+  savePlayed();
+  updatePlayedUI();
+  if (scene3d && !wasComplete && isComplete()) scene3d.pulse = 1;
+}
+function playedCount() { return sites.filter(s => played.has(s.url)).length; }
+function isComplete() { return sites.length > 0 && playedCount() === sites.length; }
+
+// Updates in place: replacing a link during its own click would cancel the navigation
+function updatePlayedUI() {
+  const n = playedCount(), total = sites.length;
+  document.getElementById("progressText").textContent = isComplete()
+    ? `Système complet : ${total} / ${total} aujourd'hui`
+    : `${n} / ${total} jeux aujourd'hui`;
+  document.getElementById("progressBar").style.width = total ? `${n / total * 100}%` : "0";
+  document.getElementById("status").classList.toggle("complete", isComplete());
+  [...document.getElementById("list").children].forEach((li, i) => {
+    const on = sites[i] && played.has(sites[i].url);
+    li.classList.toggle("played", !!on);
+    const check = li.querySelector(".check");
+    if (check) {
+      check.textContent = on ? "✓" : "";
+      check.setAttribute("aria-pressed", on ? "true" : "false");
+    }
   });
-  return closest;
+  if (scene3d) scene3d.planets.forEach((p, i) => {
+    const on = played.has(sites[i].url);
+    if (p.userData.lit !== on) { p.userData.lit = on; p.userData.repaint(); }
+    p.userData.link.classList.toggle("played", on);
+    p.userData.link.setAttribute("aria-label", `${sites[i].name}${on ? ", déjà joué aujourd'hui" : ""}`);
+  });
 }
 
-function rowIndex(target) {
-  const li = target.closest?.("li");
-  return li ? [...listEl.children].indexOf(li) : -1;
+function showToast(site) {
+  toastEl.textContent = "";
+  const a = document.createElement("a");
+  a.href = site.url;
+  a.target = "_blank";
+  a.rel = "noopener";
+  a.textContent = `Ouvrir ${site.name} ↗`;
+  a.onclick = () => { toastEl.hidden = true; };
+  toastEl.append(a);
+  toastEl.hidden = false;
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => { toastEl.hidden = true; }, 8000);
 }
-listEl.addEventListener("pointerover", e => { activeRow = rowIndex(e.target); });
-listEl.addEventListener("pointerleave", () => { activeRow = -1; });
-listEl.addEventListener("focusin", e => { activeRow = rowIndex(e.target); });
-listEl.addEventListener("focusout", () => { activeRow = -1; });
 
-// Each planet is a billboard, so its logo always faces the viewer
-function planetTexture(site) {
+// Marks the game as played, then in the system view jumps to its planet before
+// following the real link. The link click stays tied to the viewer's own click.
+function launch(e, i, link) {
+  if (link.dataset.go) { delete link.dataset.go; return; }
+  const site = sites[i];
+  setPlayed(site.url, true);
+  const s = scene3d;
+  if (!s || view !== "system" || reducedMotion || e.metaKey || e.ctrlKey || e.shiftKey) return;
+  e.preventDefault();
+  if (s.warp) return;
+  s.warp = { start: performance.now(), planet: i, out: 0 };
+  setTimeout(() => {
+    link.dataset.go = "1";
+    link.click();
+    delete link.dataset.go;
+    s.warp.out = performance.now();
+    // If no tab took over, the browser blocked it, so offer a plain link
+    setTimeout(() => {
+      if (document.visibilityState === "visible" && document.hasFocus()) showToast(site);
+    }, 700);
+  }, 620);
+}
+
+function planetSprite(site, i) {
   const c = document.createElement("canvas");
   c.width = c.height = 256;
   const tex = new THREE.CanvasTexture(c);
-  const paint = (rgb, img) => {
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  let rgb = "124,92,255", logo = null;
+  const repaint = () => {
+    const lit = sprite.userData.lit;
     const x = c.getContext("2d");
     x.clearRect(0, 0, 256, 256);
     const glow = x.createRadialGradient(128, 128, 78, 128, 128, 128);
-    glow.addColorStop(0, `rgba(${rgb},.6)`);
+    glow.addColorStop(0, `rgba(${rgb},${lit ? 0.95 : 0.14})`);
     glow.addColorStop(1, `rgba(${rgb},0)`);
     x.fillStyle = glow;
     x.fillRect(0, 0, 256, 256);
     const disc = x.createRadialGradient(100, 90, 8, 128, 128, 90);
-    disc.addColorStop(0, `rgb(${rgb})`);
-    disc.addColorStop(1, "#11121b");
+    disc.addColorStop(0, lit ? `rgb(${rgb})` : `rgba(${rgb},.35)`);
+    disc.addColorStop(1, lit ? "#1a1c2c" : "#0c0d15");
     x.beginPath();
     x.arc(128, 128, 88, 0, Math.PI * 2);
+    x.fillStyle = "#0c0d15";
+    x.fill();
     x.fillStyle = disc;
     x.fill();
-    x.lineWidth = 2;
-    x.strokeStyle = "rgba(255,255,255,.3)";
+    x.lineWidth = lit ? 4 : 2;
+    x.strokeStyle = lit ? "rgba(255,255,255,.85)" : "rgba(255,255,255,.22)";
     x.stroke();
-    if (img) {
+    x.globalAlpha = lit ? 1 : 0.82;
+    if (logo) {
       x.save();
       x.beginPath();
       x.roundRect(74, 74, 108, 108, 18);
       x.clip();
-      x.drawImage(img, 74, 74, 108, 108);
+      x.drawImage(logo, 74, 74, 108, 108);
       x.restore();
     } else {
       x.fillStyle = "#fff";
@@ -412,34 +563,54 @@ function planetTexture(site) {
       x.textBaseline = "middle";
       x.fillText(site.name.trim()[0]?.toUpperCase() || "?", 128, 134);
     }
+    x.globalAlpha = 1;
     tex.needsUpdate = true;
   };
-  paint("124,92,255");
+  sprite.userData.lit = played.has(site.url);
+  sprite.userData.repaint = repaint;
+  repaint();
   const src = site.logo || logoUrl(site.url);
   if (src) {
     const img = new Image();
     img.onload = () => {
-      let rgb = "124,92,255";
       try {
-        const s = document.createElement("canvas");
-        s.width = s.height = 8;
-        const sx = s.getContext("2d");
-        sx.drawImage(img, 0, 0, 8, 8);
-        const d = sx.getImageData(0, 0, 8, 8).data;
+        const t = document.createElement("canvas");
+        t.width = t.height = 8;
+        const tx = t.getContext("2d");
+        tx.drawImage(img, 0, 0, 8, 8);
+        const d = tx.getImageData(0, 0, 8, 8).data;
         let r = 0, g = 0, b = 0, n = 0;
-        for (let i = 0; i < d.length; i += 4) {
-          if (d[i + 3] < 128) continue;
-          r += d[i]; g += d[i + 1]; b += d[i + 2]; n++;
+        for (let k = 0; k < d.length; k += 4) {
+          if (d[k + 3] < 128) continue;
+          r += d[k]; g += d[k + 1]; b += d[k + 2]; n++;
         }
         if (n) rgb = [r, g, b].map(v => Math.round(v / n)).join(",");
       } catch {}
-      paint(rgb, img);
+      logo = img;
+      repaint();
     };
     // Logo hosts don't allow WebGL to read their images, so planets load them through a CORS proxy
     img.crossOrigin = "anonymous";
     img.src = src.startsWith("data:") ? src : `https://wsrv.nl/?url=${encodeURIComponent(src)}&output=png`;
   }
-  return tex;
+
+  // A real link follows each planet, so clicks, focus and screen readers all work
+  const link = document.createElement("a");
+  link.className = "planet";
+  link.href = site.url;
+  link.target = "_blank";
+  link.rel = "noopener";
+  const label = document.createElement("span");
+  label.textContent = site.name;
+  link.append(label);
+  link.onclick = e => launch(e, i, link);
+  link.onpointerenter = () => { activeRow = i; };
+  link.onpointerleave = () => { activeRow = -1; };
+  link.onfocus = () => { activeRow = i; };
+  link.onblur = () => { activeRow = -1; };
+  sprite.userData.link = link;
+  sprite.userData.size = 1;
+  return sprite;
 }
 
 function softDot(inner, outer) {
@@ -463,23 +634,30 @@ function initScene() {
   } catch { return null; }
   renderer.setClearColor(0x07070f);
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 200);
+  const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 300);
 
-  const STARS = 1800, DEPTH = 80;
+  const STARS = 1800;
   const pos = new Float32Array(STARS * 3);
   for (let i = 0; i < STARS; i++) {
-    pos[i * 3] = (Math.random() - 0.5) * 90;
-    pos[i * 3 + 1] = (Math.random() - 0.5) * 60;
-    pos[i * 3 + 2] = Math.random() * DEPTH - 60;
+    pos[i * 3] = (Math.random() - 0.5) * 120;
+    pos[i * 3 + 1] = (Math.random() - 0.5) * 90;
+    pos[i * 3 + 2] = Math.random() * 110 - 80;
   }
   const starGeo = new THREE.BufferGeometry();
   starGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({
-    size: 0.28, map: softDot("#ffffff", "rgba(190,205,255,.6)"), transparent: true, depthWrite: false, color: 0xdfe6ff,
+    size: 0.32, map: softDot("#ffffff", "rgba(190,205,255,.6)"), transparent: true, depthWrite: false, color: 0xdfe6ff,
   })));
 
+  // Star trails, only drawn during a jump
+  const trailGeo = new THREE.BufferGeometry();
+  trailGeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(STARS * 6), 3));
+  const trails = new THREE.LineSegments(trailGeo, new THREE.LineBasicMaterial({ color: 0xcfe0ff, transparent: true, opacity: 0, depthWrite: false }));
+  trails.frustumCulled = false;
+  scene.add(trails);
+
   const orbit = new THREE.Group();
-  orbit.rotation.set(0.14, 0, -0.08);
+  orbit.rotation.x = 0.9;
   scene.add(orbit);
 
   const ringPts = [];
@@ -487,11 +665,12 @@ function initScene() {
     const t = i / 128 * Math.PI * 2;
     ringPts.push(new THREE.Vector3(Math.cos(t), 0, Math.sin(t)));
   }
-  const ring = new THREE.LineLoop(
-    new THREE.BufferGeometry().setFromPoints(ringPts),
-    new THREE.LineBasicMaterial({ color: 0x7c5cff, transparent: true, opacity: 0.35 })
-  );
-  orbit.add(ring);
+  const ringGeo = new THREE.BufferGeometry().setFromPoints(ringPts);
+  const rings = [0, 1, 2].map(() => {
+    const ring = new THREE.LineLoop(ringGeo, new THREE.LineBasicMaterial({ color: 0x7c5cff, transparent: true, opacity: 0.3 }));
+    orbit.add(ring);
+    return ring;
+  });
 
   const core = new THREE.Sprite(new THREE.SpriteMaterial({
     map: softDot("rgba(240,250,255,1)", "rgba(90,130,255,.55)"),
@@ -500,8 +679,9 @@ function initScene() {
   orbit.add(core);
 
   const s = {
-    renderer, scene, camera, orbit, ring, core, starGeo, planets: [], signature: "",
-    radius: 10, angle: 0, camZ: reducedMotion ? 19 : 36, mx: 0, my: 0, lastScroll: scrollY, last: performance.now(),
+    renderer, scene, camera, orbit, rings, core, starGeo, trailGeo, trails, planets: [], signature: "",
+    rx: 13, rz: 11, size: 3.2, angles: [0, 1.1, 2.3], glow: 0, gold: 0, pulse: 0, warp: null, warpAmt: 0,
+    camZ: reducedMotion ? 34 : 60, mx: 0, my: 0, last: performance.now(),
   };
 
   const resize = () => {
@@ -510,9 +690,9 @@ function initScene() {
     renderer.setSize(w, h, false);
     camera.aspect = aspect;
     camera.updateProjectionMatrix();
-    s.radius = clamp(aspect * 7.6, 4.6, 12);
-    ring.scale.setScalar(s.radius);
-    core.scale.setScalar(s.radius * 0.8);
+    s.rx = clamp(aspect * 10.7 * 0.8, 3.9, 15);
+    s.rz = aspect < 1 ? 9 : 7.6;
+    s.size = aspect < 1 ? 2 : 3.2;
   };
   addEventListener("resize", resize);
   resize();
@@ -523,7 +703,6 @@ function initScene() {
       s.my = e.clientY / innerHeight - 0.5;
     });
   }
-
   renderer.setAnimationLoop(() => tickScene(s));
   return s;
 }
@@ -533,79 +712,164 @@ function syncPlanets() {
   const signature = sites.map(p => p.url + (p.logo ? p.logo.length : "")).join("|");
   if (signature === scene3d.signature) return;
   scene3d.signature = signature;
+  activeRow = -1;
   scene3d.planets.forEach(p => {
     scene3d.orbit.remove(p);
+    p.userData.link.remove();
     p.material.map.dispose();
     p.material.dispose();
   });
-  scene3d.planets = sites.map(site => {
-    const p = new THREE.Sprite(new THREE.SpriteMaterial({ map: planetTexture(site), transparent: true, depthWrite: false }));
-    p.scale.setScalar(1.8);
+  // Three orbits, fuller towards the outside
+  const n = sites.length;
+  const inner = Math.round(n * 0.24), middle = Math.round(n * 0.35);
+  scene3d.layout = sites.map((_, i) => {
+    if (i < inner) return { ring: 0, index: i, count: inner };
+    if (i < inner + middle) return { ring: 1, index: i - inner, count: middle };
+    return { ring: 2, index: i - inner - middle, count: n - inner - middle };
+  });
+  scene3d.rings[0].visible = inner > 0;
+  scene3d.rings[1].visible = middle > 0;
+  scene3d.planets = sites.map((site, i) => {
+    const p = planetSprite(site, i);
     scene3d.orbit.add(p);
+    systemEl.append(p.userData.link);
     return p;
   });
 }
+
+const RING_SIZE = [0.42, 0.7, 1];
+const RING_SPEED = [0.05, 0.035, 0.024];
+const HOME = new THREE.Vector3();
+const TARGET = new THREE.Vector3();
+const LOOK = new THREE.Vector3();
 
 function tickScene(s) {
   const now = performance.now();
   const dt = Math.min((now - s.last) / 1000, 0.05);
   s.last = now;
+  const inSystem = view === "system";
+  const active = inSystem ? activeRow : -1;
 
-  const closest = bendRows();
-  const scrolled = scrollY - s.lastScroll;
-  s.lastScroll = scrollY;
-  const active = activeRow >= 0 ? activeRow : (noHover ? closest : -1);
+  // Jump: ramps up until the link opens, then eases away
+  if (s.warp) {
+    const w = s.warp;
+    s.warpAmt = w.out ? 1 - clamp((now - w.out) / 900, 0, 1) : ease(clamp((now - w.start) / 620, 0, 1));
+    if (w.out && s.warpAmt === 0) s.warp = null;
+  } else {
+    s.warpAmt = 0;
+  }
+  const amt = s.warpAmt;
 
-  const n = s.planets.length;
-  const step = n ? Math.PI * 2 / n : 0;
-  if (active >= 0 && active < n) {
-    // Swing the chosen game's planet round to the right of the list
-    let diff = (0.4 - active * step - s.angle) % (Math.PI * 2);
-    if (diff > Math.PI) diff -= Math.PI * 2;
-    if (diff < -Math.PI) diff += Math.PI * 2;
-    s.angle += reducedMotion ? diff : diff * (1 - Math.exp(-dt * 5));
-  } else if (!reducedMotion) {
-    s.angle += dt * 0.06 + scrolled * 0.0012;
+  if (!reducedMotion && active < 0 && !s.warp) {
+    s.angles = s.angles.map((a, k) => a + dt * RING_SPEED[k]);
   }
 
-  s.planets.forEach((p, i) => {
-    const t = s.angle + i * step;
-    p.position.set(Math.cos(t) * s.radius, 0, Math.sin(t) * s.radius);
-    const on = i === active;
-    const size = on ? 3.4 : 1.8;
-    p.scale.setScalar(p.scale.x + (size - p.scale.x) * (1 - Math.exp(-dt * 8)));
-    const op = active < 0 || on ? 1 : 0.5;
-    p.material.opacity += (op - p.material.opacity) * (1 - Math.exp(-dt * 8));
+  // The system brightens as games get played, and turns gold once all are done
+  const share = sites.length ? playedCount() / sites.length : 0;
+  s.glow += (share - s.glow) * (1 - Math.exp(-dt * 2));
+  s.gold += ((isComplete() ? 1 : 0) - s.gold) * (1 - Math.exp(-dt * 2));
+  s.pulse = Math.max(0, s.pulse - dt * 0.8);
+  s.core.visible = inSystem;
+  s.core.scale.setScalar(5 + s.glow * 7 + Math.sin(now / 1400) * 0.25 + s.pulse * 10);
+  s.core.material.opacity = 0.55 + s.glow * 0.45;
+  s.rings.forEach((r, k) => {
+    r.scale.set(s.rx * RING_SIZE[k], 1, s.rz * RING_SIZE[k]);
+    if (s.pulse) r.scale.multiplyScalar(1 + (1 - s.pulse) * s.pulse * 0.25);
+    r.material.opacity = 0.2 + s.glow * 0.45;
+    r.material.color.setRGB(0.49 + 0.51 * s.gold, 0.36 + 0.46 * s.gold, 1 - 0.59 * s.gold);
   });
+  s.orbit.visible = inSystem;
+
+  s.planets.forEach((p, i) => {
+    const l = s.layout[i];
+    const t = s.angles[l.ring] + l.index / l.count * Math.PI * 2;
+    const f = RING_SIZE[l.ring];
+    p.position.set(Math.cos(t) * s.rx * f, 0, Math.sin(t) * s.rz * f);
+    const k = 1 - Math.exp(-dt * 10);
+    p.userData.size += ((i === active ? 1.35 : 1) - p.userData.size) * k;
+    p.scale.setScalar(s.size * p.userData.size);
+    const op = active < 0 || i === active ? 1 : 0.6;
+    p.material.opacity += (op - p.material.opacity) * k;
+  });
+  s.orbit.updateMatrixWorld();
 
   if (!reducedMotion) {
-    const speed = 1.2 + Math.min(Math.abs(scrolled), 120) * 0.9;
+    const speed = 1 + amt * 170;
+    const tail = amt * 16;
     const pos = s.starGeo.attributes.position;
+    const trail = s.trailGeo.attributes.position;
     for (let i = 0; i < pos.count; i++) {
       let z = pos.getZ(i) + speed * dt;
-      if (z > 20) z -= 80;
+      if (z > 30) z -= 110;
       pos.setZ(i, z);
+      if (amt) {
+        trail.setXYZ(i * 2, pos.getX(i), pos.getY(i), z);
+        trail.setXYZ(i * 2 + 1, pos.getX(i), pos.getY(i), z - tail);
+      }
     }
     pos.needsUpdate = true;
-    s.core.material.opacity = 0.8 + Math.sin(now / 1400) * 0.12;
+    if (amt) trail.needsUpdate = true;
+    s.trails.material.opacity = amt;
   }
 
   const c = s.camera;
-  s.camZ += (19 - s.camZ) * (1 - Math.exp(-dt * 1.6));
-  c.position.x += (s.mx * 3 - c.position.x) * (1 - Math.exp(-dt * 3));
-  c.position.y += (1.2 - s.my * 2 - c.position.y) * (1 - Math.exp(-dt * 3));
-  c.position.z = s.camZ;
-  c.lookAt(0, 0, 0);
+  s.camZ += (34 - s.camZ) * (1 - Math.exp(-dt * 1.8));
+  HOME.set(s.mx * 2.4, 1.2 - s.my * 1.6, s.camZ);
+  LOOK.set(0, 1.5, 0);
+  if (s.warp && s.planets[s.warp.planet]) {
+    s.planets[s.warp.planet].getWorldPosition(TARGET);
+    c.position.copy(HOME).lerp(TARGET, amt * 0.9);
+    LOOK.lerp(TARGET, amt);
+  } else {
+    c.position.copy(HOME);
+  }
+  c.lookAt(LOOK);
+  const fov = 35 + amt * 45;
+  if (c.fov !== fov) { c.fov = fov; c.updateProjectionMatrix(); }
+  c.updateMatrixWorld();
+  flashEl.style.opacity = amt > 0.75 ? (amt - 0.75) * 3 : 0;
+
+  if (inSystem) {
+    const w = innerWidth, h = innerHeight;
+    const pxPerUnit = d => h / (2 * d * Math.tan(c.fov * Math.PI / 360));
+    s.planets.forEach(p => {
+      p.getWorldPosition(TARGET);
+      const dist = TARGET.distanceTo(c.position);
+      const depth = TARGET.z;
+      TARGET.project(c);
+      const link = p.userData.link;
+      const disc = Math.max(44, p.scale.x * 0.69 * pxPerUnit(dist));
+      link.style.width = link.style.height = `${disc}px`;
+      link.style.transform = `translate(${(TARGET.x + 1) / 2 * w - disc / 2}px, ${(1 - TARGET.y) / 2 * h - disc / 2}px)`;
+      link.style.zIndex = Math.round(depth + 50);
+    });
+  }
   s.renderer.render(s.scene, c);
 }
 
-scene3d = initScene();
-render();
-// Without WebGL the list still bends on scroll, over the plain background
-if (!scene3d) {
-  const loop = () => { bendRows(); requestAnimationFrame(loop); };
-  loop();
+document.getElementById("viewSystem").onclick = () => setView("system");
+document.getElementById("viewList").onclick = () => setView("list");
+function setView(v) {
+  view = v;
+  try { localStorage.setItem(VIEW_KEY, v); } catch {}
+  if (v === "system") editing = false;
+  activeRow = -1;
+  render();
 }
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") return;
+  // A new day may have started while the tab was in the background
+  played = loadPlayed();
+  updatePlayedUI();
+});
+
+scene3d = initScene();
+try { view = localStorage.getItem(VIEW_KEY) || "system"; } catch { view = "system"; }
+if (!scene3d) {
+  view = "list";
+  document.getElementById("viewToggle").hidden = true;
+}
+render();
 </script>
 </body>
 </html>
